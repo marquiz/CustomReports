@@ -12,6 +12,7 @@
 #
 """Models of build_perf app"""
 from django.db import models
+from django.forms import ModelForm
 
 class BPTestRun(models.Model):
     """Results from one oe-build-perf-test run"""
@@ -137,3 +138,66 @@ class BuildStatRusage(RusageBase):
                    (CHILDREN, 'Children'))
     task = models.ForeignKey('BuildStatTask', on_delete=models.CASCADE)
     who = models.CharField(max_length=1, choices=WHO_CHOICES)
+
+
+#{ Forms for add_build_perf_test_result.py
+
+class BPTestRunForm(ModelForm):
+    class Meta:
+        model = BPTestRun
+        fields = '__all__'
+
+
+class BPTestCaseResultForm(ModelForm):
+    class Meta:
+        model = BPTestCaseResult
+        fields = '__all__'
+
+
+class SysResMeasurementForm(ModelForm):
+    class Meta:
+        model = SysResMeasurement
+        fields = '__all__'
+
+
+class SysResIOStatForm(ModelForm):
+    class Meta:
+        model = SysResIOStat
+        fields = '__all__'
+
+
+class SysResRusageForm(ModelForm):
+    class Meta:
+        model = SysResRusage
+        fields = '__all__'
+
+
+class DiskUsageMeasurementForm(ModelForm):
+    class Meta:
+        model = DiskUsageMeasurement
+        fields = '__all__'
+
+
+class BuildStatRecipeForm(ModelForm):
+    class Meta:
+        model = BuildStatRecipe
+        fields = '__all__'
+
+
+class BuildStatTaskForm(ModelForm):
+    class Meta:
+        model = BuildStatTask
+        fields = '__all__'
+
+
+class BuildStatIOStatForm(ModelForm):
+    class Meta:
+        model = BuildStatIOStat
+        fields = '__all__'
+
+
+class BuildStatRusageForm(ModelForm):
+    class Meta:
+        model = BuildStatRusage
+        fields = '__all__'
+#}
