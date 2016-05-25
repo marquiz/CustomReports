@@ -1,0 +1,25 @@
+"""
+Django settings for customreports project.
+
+Template for production settings
+"""
+
+SECRET_KEY = '72d)a3owss+7z@jp26+=05b#e8q*i=qy$ikp9p0bi7uwo!bhlg'
+
+ALLOWED_HOSTS = []
+
+# Database
+#
+# Set your database credentials and server settings here
+
+DATABASES = {
+    'default': {
+        'ENGINE': 'django.db.backends.postgresql_psycopg2',
+        'NAME': 'customreports',
+        'USER': '',
+        'PASSWORD': '',
+        'HOST': '127.0.0.1',
+        'PORT': '',
+    }
+}
+

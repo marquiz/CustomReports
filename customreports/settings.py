@@ -8,24 +8,10 @@ For the full list of settings and their values, see
 https://docs.djangoproject.com/en/1.6/ref/settings/
 """
 
-# Build paths inside the project like this: os.path.join(BASE_DIR, ...)
-import os
-BASE_DIR = os.path.dirname(os.path.dirname(__file__))
-
-
 # Quick-start development settings - unsuitable for production
 # See https://docs.djangoproject.com/en/1.6/howto/deployment/checklist/
 
-# SECURITY WARNING: keep the secret key used in production secret!
-SECRET_KEY = '72d)a3owss+7z@jp26+=05b#e8q*i=qy$ikp9p0bi7uwo!bhlg'
-
-# SECURITY WARNING: don't run with debug turned on in production!
-DEBUG = True
-
 TEMPLATE_DEBUG = True
-
-ALLOWED_HOSTS = []
-
 
 # Application definition
 
@@ -53,20 +39,6 @@ ROOT_URLCONF = 'customreports.urls'
 
 WSGI_APPLICATION = 'customreports.wsgi.application'
 
-
-# Database
-# https://docs.djangoproject.com/en/1.6/ref/settings/#databases
-
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.postgresql_psycopg2',
-        'NAME': 'customreports',
-        'USER': 'django_reports',
-        'PASSWORD': 'dada',
-        'HOST': '127.0.0.1',
-        'PORT': '5432',
-    }
-}
 
 # Internationalization
 # https://docs.djangoproject.com/en/1.6/topics/i18n/
@@ -109,3 +81,14 @@ TEMPLATES = [
         },
     },
 ]
+
+try:
+    from .settings_production import *
+except ImportError:
+    try:
+        from .settings_development import *
+    except ImportError:
+        raise ImportError(
+                "ERROR: you must provide either 'settings_production.py' or "
+                "'settings_development.py'")
+        raise
