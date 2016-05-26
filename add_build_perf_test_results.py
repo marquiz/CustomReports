@@ -28,7 +28,7 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "customreports/"))
 os.environ["DJANGO_SETTINGS_MODULE"] = "customreports.settings"
 django.setup()
 
-from build_perf.models import BPTestRun
+from build_perf.models import BPTestRun, BPTestCaseResult
 
 
 logging.basicConfig(level=logging.INFO)
@@ -58,6 +58,14 @@ The script is intended for development and testing purpoeses."""
     return args
 
 
+def choice_lookup(value, choices_map):
+    """Helper for mapping values to db-values"""
+    if not value in choices_map:
+        raise TypeError("Invalid choice value '{}' (not one of {})".format(
+                            value, ', '.join(choices_map.keys())))
+    return choices_map[value]
+
+
 def import_results_dir(results_dir):
     """Import results dir produced by oe-build-perf-test script"""
     log.info("Importing test results from {}".format(results_dir))
@@ -76,7 +84,8 @@ def import_results_dir(results_dir):
 def import_results(results):
     """Import all data from a results dict into the database"""
     data = {}
-    for field in ('product', 'tester_host', 'git_branch', 'git_revision'):
+    for field in ('product', 'tester_host', 'git_branch', 'git_commit',
+                  'git_commit_count'):
         data[field] = str(results[field])
     data['start_time'] = datetime.utcfromtimestamp(results['start_time'])
     data['elapsed_time'] = timedelta(seconds=results['elapsed_time'])
@@ -88,7 +97,32 @@ def import_results(results):
     with transaction.atomic():
         testrun_obj = BPTestRun(**data)
         testrun_obj.save()
+        for case_result in results['tests'].values():
+            import_bptestcaseresult(case_result, testrun_obj)
         return testrun_obj
+
+def import_bptestcaseresult(case_results, test_run):
+    """Create BPTestCaseResult from results json data"""
+    status_map = {'SUCCESS': BPTestCaseResult.SUCCESS,
+                  'FAIL': BPTestCaseResult.FAILURE,
+                  # Some old JSON reports might have 'FAIL' instead of 'FAILURE'
+                  'FAILURE': BPTestCaseResult.FAILURE,
+                  'ERROR': BPTestCaseResult.ERROR,
+                  'SKIPPED': BPTestCaseResult.SKIPPED,
+                  'UNEXPECTED_SUCCESS': BPTestCaseResult.SUCCESS,
+                  'EXPECTED_FAILURE': BPTestCaseResult.FAILURE,
+                  }
+    status = choice_lookup(case_results['status'], status_map)
+
+    data = {'name': case_results['name'],
+            'description': case_results['description'],
+            'status': status}
+    if case_results['start_time'] is not None:
+        data['start_time'] = datetime.utcfromtimestamp(case_results['start_time'])
+    if case_results['elapsed_time'] is not None:
+        data['elapsed_time'] = timedelta(seconds=case_results['elapsed_time'])
+    result_obj = test_run.bptestcaseresult_set.create(**data)
+    return result_obj
 
 
 def main(argv=None):
