@@ -28,7 +28,9 @@ sys.path.append(os.path.join(os.path.dirname(__file__), "customreports/"))
 os.environ["DJANGO_SETTINGS_MODULE"] = "customreports.settings"
 django.setup()
 
-from build_perf.models import BPTestRun, BPTestCaseResult
+from build_perf.models import (BPTestRun, BPTestCaseResult,
+                               DiskUsageMeasurement, SysResMeasurement,
+                               SysResRusage, SysResIOStat)
 
 
 logging.basicConfig(level=logging.INFO)
@@ -122,7 +124,46 @@ def import_bptestcaseresult(case_results, test_run):
     if case_results['elapsed_time'] is not None:
         data['elapsed_time'] = timedelta(seconds=case_results['elapsed_time'])
     result_obj = test_run.bptestcaseresult_set.create(**data)
+    for meas in case_results['measurements']:
+        if meas['type'] == 'diskusage':
+            du_obj = DiskUsageMeasurement(test_result=result_obj,
+                                          name=meas['name'],
+                                          legend=meas['legend'],
+                                          size=meas['values']['size'])
+            du_obj.save()
+        elif meas['type'] == 'sysres':
+            import_sysresmeasurement(meas['name'], meas['legend'],
+                                     meas['values'], result_obj)
+        else:
+            raise TypeError("Unknown measurement type {} in {} results".format(
+                            mtype, case_results['name']))
     return result_obj
+
+def import_sysresmeasurement(name, legend, values, test_result):
+    """Import SysResMeasurement from json data"""
+    data = {'test_result': test_result,
+            'name': name,
+            'legend': legend,
+            'start_time': datetime.utcfromtimestamp(values['start_time']),
+            'elapsed_time': timedelta(seconds=values['elapsed_time'])}
+    meas_obj = SysResMeasurement(**data)
+    meas_obj.save()
+
+    # Import rusage
+    data = {'measurement': meas_obj}
+    data.update(values['rusage'])
+    # We need to convert stime and utime to timedelta
+    data['ru_stime'] = timedelta(seconds=data['ru_stime'])
+    data['ru_utime'] = timedelta(seconds=data['ru_utime'])
+    ru_obj = SysResRusage(**data)
+    ru_obj.save()
+
+    # Import IO stat
+    data = {'measurement': meas_obj}
+    data.update(values['iostat'])
+    io_obj = SysResIOStat(**data)
+    io_obj.save()
+    return meas_obj
 
 
 def main(argv=None):
