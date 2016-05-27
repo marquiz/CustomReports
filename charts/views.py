@@ -12,7 +12,7 @@ def get_item(dictionary, key):
     return dictionary.get(key)
 
 class ReleaseForm(forms.Form):
-    versions = forms.ModelChoiceField(queryset=TestRun.objects.all().order_by('-version').distinct('version'), to_field_name='version')
+    versions = forms.ModelChoiceField(queryset=TestRun.objects.order_by('-version').values_list('version').distinct(), to_field_name='version')
 
 
 def search(request):
@@ -34,14 +34,15 @@ def index(request, latest_version=None):
     start = True
 
     if not latest_version:
-        version = TestRun.objects.order_by('-version').distinct('version').values_list('version')[0][0]
+        version_list = TestRun.objects.order_by('-version').values_list('version').distinct()
+        version = version_list[0] if version_list else None
     else:
         start = False
         version = latest_version
 
     testruns = {}
 
-    all_releases = TestRun.objects.filter(version=version).distinct('release').values_list('release', flat=True)
+    all_releases = TestRun.objects.filter(version=version).values_list('release', flat=True).distinct()
 
     for release in all_releases:
         passed = failed = 0
@@ -65,7 +66,7 @@ def index(request, latest_version=None):
 # returns a list used for creating a form with all distinct entries of given field name from Test Runs
 def get_field_form(fieldname):
 
-	return [entry.encode("utf8") for entry in TestRun.objects.distinct(fieldname).values_list(fieldname, flat=True)]
+	return [entry.encode("utf8") for entry in TestRun.objects.values_list(fieldname, flat=True).distinct()]
 
 def testrun_filter(request):
 
@@ -89,9 +90,10 @@ def testrun_filter(request):
         if request.GET.get('testplan'):
             testplan_name = TestPlan.objects.get(id=request.GET.get('testplan')).name
 
+    plan_names = TestPlan.objects.values_list('name').distinct()
     return render(request, 'charts/testrun_filter.html', {
         'release_form' : get_field_form('release'),
-        'plan_form' : TestPlan.objects.distinct('name').all(),
+        'plan_form' : TestPlan.objects.filter(name__in=plan_names),
         'type_form' : get_field_form('test_type'),
         'commit_form' : get_field_form('poky_commit'),
         'target_form' : get_field_form('target'),
