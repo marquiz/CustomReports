@@ -11,9 +11,34 @@
 # more details.
 #
 """Views for build_perf app"""
+from collections import OrderedDict
 from django.http import HttpResponse
+from django.shortcuts import render
+from django.views.generic import ListView
+
+from .models import BPTestRun
 
 
 def index(request):
-    """Dummy index page"""
-    return HttpResponse("Build perf test results coming soon...")
+    """Index page listing all tester hosts"""
+    fields = ('product', 'tester_host', 'git_branch')
+    prod_list = BPTestRun.objects.values_list(*fields).distinct().order_by(*fields)
+    products = OrderedDict()
+    for prod, host, branch in prod_list:
+        if not prod in products:
+            products[prod] = OrderedDict()
+        if not host in products[prod]:
+            products[prod][host] = []
+        products[prod][host].append(branch)
+
+    return render(request, 'build_perf/index.html', {
+        'products': products,
+        })
+
+
+class TestRunList(ListView):
+    """Index page listing all tester hosts"""
+    model = BPTestRun
+
+    def get(self, query, *args, **kwargs):
+        return HttpResponse("List of test runs coming soon...")

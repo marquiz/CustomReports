@@ -18,4 +18,5 @@ from . import views
 
 urlpatterns = [
     url(r'^$', views.index, name='index'),
+    url(r'^testruns$', views.TestRunList.as_view(), name='testrunlist'),
 ]

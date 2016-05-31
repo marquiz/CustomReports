@@ -1,0 +1,36 @@
+{% extends "build_perf/base.html" %}
+
+{% block title %}Build Performance Test Results{% endblock %}
+
+{% block body %}
+{% if products %}
+  <h2>Available products, tester hosts and branches</h2>
+  <div class="list-group">
+  {% for product, hosts in products.items %}
+    <div class="list-group-item">
+      <h3>
+        <a class="list-group-item-heading" href="{% url 'build_perf:testrunlist' %}?product={{ product|urlencode }}">{{ product }}</a>
+      </h3>
+      <ul class="list-group-item-text" style="list-style-type:none;">
+      {% for host, branches in hosts.items %}
+        <li>
+        <h4>
+          <a href="{% url 'build_perf:testrunlist' %}?product={{ product|urlencode }}&tester_host={{ host|urlencode }}">{{ host }}</a>
+        </h4>
+        <ul class="list-group-item-text" style="list-style-type:none;">
+        {% for branch in branches %}
+          <li style="font-size:16px;:">
+            <a href="{% url 'build_perf:testrunlist' %}?product={{ product|urlencode }}&tester_host={{ host|urlencode }}&git_branch={{ branch|urlencode }}">{{ branch }} </a>
+          </li>
+        {% endfor %}
+        </ul>
+        </li>
+      {% endfor %}
+      </ul>
+    </div>
+  {% endfor %}
+  </div>
+{% else %}
+  <p class="lead">No test results found.</p>
+{% endif %}
+{% endblock body %}
