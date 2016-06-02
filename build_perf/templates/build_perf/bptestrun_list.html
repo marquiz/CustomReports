@@ -1,0 +1,94 @@
+{% extends "build_perf/base.html" %}
+
+{% load build_perf_filters %}
+{% load build_perf_tags %}
+
+{% block title %}Build Performance Test Results - Test Runs{% endblock %}
+
+{% block breadcrumbs %}
+  <ol class="breadcrumb">
+    <li><a href="{% url 'build_perf:index' %}">Build Perf Tests</a></li>
+    <li class="active">Test runs</li>
+  </ol>
+{% endblock breadcrumbs %}
+
+
+{% block body %}
+  <h2>Found {{ total_row_count }} Test Run{{ total_row_count|pluralize }}</h2>
+  <!-- Filters -->
+  <div class="list-group">
+  {% for field, data in filters.items %}
+    <div class="list-group-item">
+      <h4 class="list-group-item-heading">{{ data.0 }}
+        <a href="?{% modify_query_param request field None %}"><span class="glyphicon glyphicon-remove"></span></a>
+      </h4>
+      <p class="list-group-item-text">{{ data.1 }}</p>
+    </div>
+  {% endfor %}
+  </div>
+  <!-- Paginator -->
+  {% if is_paginated %}
+  <nav>
+    <ul class="pagination pagination-sm">
+    {% if page_obj.has_previous %}
+      <li class="enabled"><a href="?{% modify_query_param request page=page_obj.previous_page_number %}"><span>&laquo;</span></a></li>
+    {% else %}
+      <li class="disabled"><a href="#"><span>&laquo;</span></a></li>
+    {% endif %}
+    {% for pagenum in paginator.page_range %}
+      <li class="{% if page_obj.number == pagenum %} disabled {% else %} enabled {% endif %}">
+      <a href="?{% modify_query_param request page=pagenum %}"><span>{{ pagenum }}</span></a>
+      </li>
+    {% endfor %}
+    {% if page_obj.has_next %}
+      <li class="enabled"><a href="?{% modify_query_param request page=page_obj.next_page_number %}"><span>&raquo;</span></a></li>
+    {% else %}
+      <li class="disabled"><a href="#"><span>&raquo;</span></a></li>
+    {% endif %}
+    </ul>
+  </nav>
+  {% endif %}
+  <table class="table table-striped table-hover">
+    <!-- Table header row -->
+    <thead>
+      <tr>
+      {% for field, heading in columns.items %}
+        <th>
+        {% if order_by == field %}
+          <a href="?{% modify_query_param request 'order_by' reverse_order %}">{{ heading }}</a>
+          {% if reverse_order|first == '-' %}
+            <span class="glyphicon glyphicon-triangle-bottom"></span>
+          {% else %}
+            <span class="glyphicon glyphicon-triangle-top"></span>
+          {% endif %}
+        {% else %}
+          <a href="?{% modify_query_param request 'order_by' field %}">{{ heading }}</a>
+        {% endif %}
+          </th>
+      {% endfor %}
+      </tr>
+    </thead>
+    <!-- Table body -->
+    <tbody>
+    {% with columns.keys as col_fields %}
+    {% for row in bptestrun_list %}
+      <tr>
+      {% for col in row %}
+        <td>
+        {% with col_fields|get_item:forloop.counter0 as field %}
+        {% if field == "id" %}
+          <a href="{% url 'build_perf:testrundetails' pk=col %}?filter_params={{ filter_params|urlencode }}">{{ col }}</a>
+        {% elif 'time' in field %}
+          {{ col }}
+        {% else %}
+          <a href="?{% modify_query_param request field col page=1 %}">{{ col }}</a>
+        {% endif %}
+        {% endwith %}
+        </td>
+      {% endfor %}
+      </tr>
+    {% endfor %}
+    {% endwith %}
+    </tbody>
+  </ul>
+{% endblock body %}

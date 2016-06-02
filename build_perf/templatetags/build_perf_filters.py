@@ -10,14 +10,17 @@
 # FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General Public License for
 # more details.
 #
-"""URL configuration for build_perf app"""
-from django.conf.urls import url
+"""Custom filters for build_perf app"""
+from django import template
 
-from . import views
+register = template.Library()
 
 
-urlpatterns = [
-    url(r'^$', views.index, name='index'),
-    url(r'^testruns$', views.TestRunList.as_view(), name='testrunlist'),
-    url(r'^testruns/(?P<pk>.+)$', views.TestRunDetails.as_view(), name='testrundetails'),
-]
+@register.filter
+def get_item(hashable, key):
+    return hashable[key]
+
+
+@register.filter
+def get_attr(obj, attr):
+    return getattr(obj, attr)

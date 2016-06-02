@@ -14,7 +14,7 @@
 from collections import OrderedDict
 from django.http import HttpResponse
 from django.shortcuts import render
-from django.views.generic import ListView
+from django.views.generic import DetailView, ListView
 
 from .models import BPTestRun
 
@@ -39,6 +39,62 @@ def index(request):
 class TestRunList(ListView):
     """Index page listing all tester hosts"""
     model = BPTestRun
+    list_fields = OrderedDict([('id', 'ID'),
+                               ('product', 'Product'),
+                               ('tester_host', 'Host'),
+                               ('start_time', 'Start time'),
+                               ('git_branch', 'Branch'),
+                               ('git_commit', 'Commit'),
+                               ('git_commit_count', 'Commit number'),
+                               ('elapsed_time', 'Elapsed time')])
+
+    def get_queryset(self):
+        params = self.request.GET.dict()
+        self.paginate_by = self.request.GET.get('items_per_page', '50')
+        self.ordering = self.request.GET.get('order_by', 'start_time')
+        self.filters = dict([(n, v) for n, v in self.request.GET.items() if \
+                            n in self.list_fields])
+        # Set columns
+        self.columns = []
+        cols = self.request.GET.getlist('column') or self.list_fields.keys()
+        if not 'id' in cols:
+            # Always show ID
+            cols.insert(0, 'id')
+        for field in cols:
+            if field in self.filters:
+                continue
+            if (not field.startswith('git_commit') or
+                ('git_commit' not in self.filters and
+                 'git_commit_count' not in self.filters)):
+                self.columns.append(field)
+        queryset = BPTestRun.objects.filter(**self.filters).order_by(self.ordering).values_list(*self.columns)
+        self.total_row_count = len(queryset)
+        return queryset
+
+    def get_context_data(self, **kwargs):
+        context = super(TestRunList, self).get_context_data(**kwargs)
+        context['order_by'] = self.ordering.lstrip('-')
+        if not self.ordering.startswith('-'):
+            context['reverse_order'] = '-' + self.ordering
+        else:
+            context['reverse_order'] = self.ordering.lstrip('-')
+
+        # Add fields to show
+        context['filters'] = OrderedDict()
+        for field in self.filters:
+            context['filters'][field] = (self.list_fields[field], self.filters[field])
+        context['columns'] = OrderedDict()
+        for field in self.columns:
+            context['columns'][field] = self.list_fields[field]
+        context['filter_params'] = self.request.GET.urlencode()
+        context['total_row_count'] = self.total_row_count
+
+        return context
+
+
+class TestRunDetails(DetailView):
+    """Index page listing all tester hosts"""
+    model = BPTestRun
 
     def get(self, query, *args, **kwargs):
-        return HttpResponse("List of test runs coming soon...")
+        return HttpResponse("Test run details page coming soon...")
