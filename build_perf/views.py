@@ -96,5 +96,29 @@ class TestRunDetails(DetailView):
     """Index page listing all tester hosts"""
     model = BPTestRun
 
-    def get(self, query, *args, **kwargs):
-        return HttpResponse("Test run details page coming soon...")
+    def get_context_data(self, **kwargs):
+        context = super(TestRunDetails, self).get_context_data(**kwargs)
+        # Add fields to show
+        context['info_fields'] = [('product', 'Product'),
+                                  ('tester_host', 'Host'),
+                                  ('git_branch', 'Branch'),
+                                  ('git_commit', 'Commit'),
+                                  ('start_time', 'Start time'),
+                                  ('elapsed_time', 'Elapsed time')]
+        context['rusage_fields'] = [('ru_utime', 'User CPU time'),
+                                    ('ru_stime', 'System CPU time'),
+                                    ('ru_maxrss', 'Max. resident set size'),
+                                    ('ru_minflt', 'Page reclaims'),
+                                    ('ru_majflt', 'Page faults'),
+                                    ('ru_inblock', 'Block input operations'),
+                                    ('ru_oublock', 'Block output operations'),
+                                    ('ru_nvcsw', 'Voluntary context switches'),
+                                    ('ru_nivcsw', 'Involunt. context switches')]
+        context['iostat_fields'] = [('read_bytes', 'Bytes read from storage'),
+                                    ('write_bytes', 'Bytes written to storage'),
+                                    ('rchar', 'Characters read'),
+                                    ('wchar', 'Characters written'),
+                                    ('syscr', 'Read syscalls'),
+                                    ('syscw', 'Write syscalls'),
+                                    ('cancelled_write_bytes', 'Cancelled write bytes')]
+        return context

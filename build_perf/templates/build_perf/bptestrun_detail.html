@@ -1,0 +1,97 @@
+{% extends "build_perf/base.html" %}
+
+{% load build_perf_filters %}
+
+{% block title %}Build Performance Test Results - Test Run Details{% endblock %}
+
+{% block breadcrumbs %}
+<ol class="breadcrumb">
+  <li><a href="{% url 'build_perf:index' %}">Build Perf Tests</a></li>
+  <li><a href="{% url 'build_perf:testrunlist' %}?{{ request.GET.filter_params }}">Test runs</a></li>
+  <li class="active">#{{ bptestrun.pk }}</li>
+</ol>
+{% endblock breadcrumbs %}
+
+{% block body %}
+<div class="row">
+  <div class="col-lg-12">
+    <h2 class="page-header">Results of Test Run #{{ bptestrun.id }}</h2>
+  </div>
+</div>
+<div class="row">
+  <!-- Measurement results panel -->
+  <div class="col-md-8">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h2 class="panel-title">Measurement Results</h2>
+      </div>
+      <!-- Test runs -->
+      <div class="panel-body list-group">
+      {% for test in bptestrun.bptestcaseresult_set.all %}
+        <div class="list-group-item">
+          <h4 class="list-group-item-heading">{{ test.name }}: {{ test.description }}</h4>
+          <dl class="list-group-item-text dl-horizontal">
+            <!-- Test status -->
+            <dt><strong>Status:</strong></dt>
+            <dd>{{ test.get_status_display }}</dd>
+          {% for measurement in test.bpmeasurement_set.all %}
+          {% if measurement.sysresmeasurement %}
+            <!-- System resource measurements -->
+            {% with measurement.sysresmeasurement as result %}
+            <dt style="white-space: normal">
+            <strong> Resource usage of {{ result.legend }}:</strong>
+            </dt>
+            <dd class="list-unstyled">
+            <li><a href="#allResources{{ result.id }}" data-toggle="collapse">
+              Elapsed time: {{ result.elapsed_time }}
+              <span class="caret"></span>
+            </a></li>
+            <div id="allResources{{ result.id }}" class="collapse out">
+            {% for field, descr in rusage_fields %}
+              <!-- <div class="col-md-8 col-md-push-4"> -->
+              <li>{{ descr }}: {{ result.sysresrusage|get_attr:field }}</li>
+            {% endfor %}
+            {% for field, descr in iostat_fields %}
+              <li>{{ descr }}: {{ result.sysresiostat|get_attr:field }}</li>
+            {% endfor %}
+            </div>
+            </dd>
+            {% endwith %}
+          {% elif measurement.diskusagemeasurement %}
+            <!-- Disk usage measurement -->
+            {% with measurement.diskusagemeasurement as result %}
+            <dt><strong>Size of {{ result.legend }}:</strong></dt>
+            <dd>{{ result.size }} kB</dd>
+            {% endwith %}
+          {% endif %}
+          {% endfor %}
+          </dl>
+        </div>
+      {% endfor %}
+      </div>
+    </div>
+  </div>
+  <!-- Details panel -->
+  <div class="col-md-4">
+    <div class="panel panel-default">
+      <div class="panel-heading">
+        <h2 class="panel-title">Test Run Details</h2>
+      </div>
+      <div class="panel-body list-group">
+      {% for name, heading in info_fields %}
+      {% with value=bptestrun|get_attr:name %}
+        <div class="list-group-item">
+          <h4 class="list-group-item-heading">{{ heading }}</h4>
+          {% if 'time' in name %}
+            <p>{{ value }}</p>
+          {% else %}
+            <a class="list-group-item-text" href="{% url 'build_perf:testrunlist' %}?{{ name }}={{ value|urlencode }}">{{ value }}</a>
+          {% endif %}
+        </div>
+      {% endwith %}
+      {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+{% endblock body %}
