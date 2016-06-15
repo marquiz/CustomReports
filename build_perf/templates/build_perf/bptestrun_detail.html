@@ -51,9 +51,11 @@
               <!-- <div class="col-md-8 col-md-push-4"> -->
               <li>{{ descr }}: {{ result.sysresrusage|get_attr:field }}</li>
             {% endfor %}
+            {%if result|has_attr:sysresiostat %}
             {% for field, descr in iostat_fields %}
               <li>{{ descr }}: {{ result.sysresiostat|get_attr:field }}</li>
             {% endfor %}
+            {% endif %}
             </div>
             </dd>
             {% endwith %}

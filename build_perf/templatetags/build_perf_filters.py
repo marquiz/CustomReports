@@ -24,3 +24,7 @@ def get_item(hashable, key):
 @register.filter
 def get_attr(obj, attr):
     return getattr(obj, attr)
+
+@register.filter
+def has_attr(obj, attr):
+    return hasattr(obj, attr)
