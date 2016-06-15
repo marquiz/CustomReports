@@ -32,7 +32,14 @@
         </a>
       </div>
     </nav>
+    <nav class="navbar navbar-default" style="margin-bottom: 0">
+      {% block breadcrumbs %}
+      <ol class="breadcrumb">
+        <li class="active">Build Perf Tests</li>
+      </ol>
+      {% endblock %}
+    </nav>
     {% block body %}{% endblock %}
   </div>
-  </body>
+</body>
 </html>
