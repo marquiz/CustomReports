@@ -79,6 +79,10 @@ class TimeZone(tzinfo):
     def dst(self, dt):
         return None
 
+TIMEZONES = {'UTC': TimeZone(0, 'UTC'),
+             'EET': TimeZone(7200, 'EET'),
+             'EEST': TimeZone(10800, 'EEST')}
+
 
 def choice_lookup(value, choices_map):
     """Helper for mapping values to db-values"""
@@ -93,7 +97,7 @@ def to_datetime_obj(obj):
     if isinstance(obj, datetime):
         return obj
     else:
-        return datetime.utcfromtimestamp(obj)
+        return datetime.utcfromtimestamp(obj).replace(tzinfo=TIMEZONES['UTC'])
 
 def to_timedelta_obj(obj):
     """Helper for getting elapsed time in timedelta format"""
