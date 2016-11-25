@@ -38,7 +38,7 @@ from build_perf.models import (BPTestRun, BPTestCaseResult,
 
 
 logging.basicConfig(level=logging.INFO)
-log = logging.getLogger()
+log = logging.getLogger('main')
 
 
 class MyError(Exception):
@@ -57,6 +57,8 @@ The script is intended for development and testing purpoeses."""
 
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Enable debug level logging')
+    parser.add_argument('-D', '--debug2', action='store_true',
+                        help='More verbose logging')
     parser.add_argument('results_path', metavar='RESULTS_PATH',
                         help="Results which to import")
     args = parser.parse_args(argv)
@@ -263,6 +265,9 @@ def main(argv=None):
     args = parse_args(argv)
 
     if args.debug:
+        log.setLevel(logging.DEBUG)
+    if args.debug2:
+        logging.getLogger().setLevel(logging.DEBUG)
         log.setLevel(logging.DEBUG)
 
     ret = 1
