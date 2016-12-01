@@ -1,0 +1,47 @@
+{% extends "build_perf/base.html" %}
+
+{% load build_perf_filters %}
+{% load build_perf_tags %}
+
+{% block scripts %}
+<script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+<script type="text/javascript">
+google.charts.load('current', {'packages':['corechart']});
+</script>
+{% endblock scripts %}
+
+{% block title %}Build Performance Test Results - History View{% endblock %}
+
+{% block breadcrumbs %}
+<ol class="breadcrumb">
+  <li><a href="{% url 'build_perf:index' %}">Build Perf Tests</a></li>
+  <li class="active">History View</li>
+</ol>
+{% endblock breadcrumbs %}
+
+{% block body %}
+<!-- Details -->
+<div class="container-fluid">
+  <div class="row">
+    <div class="col-lg-4">
+      <dl class="dl-horizontal">
+        {% for name, value in info.items %}
+        <dt>{{ name }}</dt>
+        <dd>{{ value }}</dd>
+        {% endfor %}
+      </dl>
+    </div>
+  </div>
+  <div class="row">
+    <div class="col-lg-12">
+    {% for test, data in tests.items %}
+      <h4>{{ test }}: {{ data.description }}</h4>
+      {% for meas in data.measurements %}
+      {% strcat "chart_" forloop.parentloop.counter "_" forloop.counter as chart_id %}
+      {% include "build_perf/linechart.html" with meta=meas.0 data=meas.1 chart_elem_id=meas.0.chart_id %}
+      {% endfor %}
+    {% endfor %}
+    </div>
+  </div>
+</div>
+{% endblock body %}

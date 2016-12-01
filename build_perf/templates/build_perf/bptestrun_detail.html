@@ -15,7 +15,11 @@
 {% block body %}
 <div class="row">
   <div class="col-lg-12">
-    <h2 class="page-header">Results of Test Run #{{ bptestrun.id }}</h2>
+    <h2 class="page-header">
+    <h2 class="page-header">
+      Results of Test Run #{{ bptestrun.id }}
+      <a href="{% url 'build_perf:history' %}?product={{ bptestrun|get_attr:"product"|urlencode }}&tester_host={{ bptestrun|get_attr:"tester_host"|urlencode }}&git_branch={{ bptestrun|get_attr:"git_branch"|urlencode }}">[history view]</a>
+    </h2>
   </div>
 </div>
 <div class="row">

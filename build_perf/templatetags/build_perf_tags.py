@@ -12,8 +12,14 @@
 #
 """Custom filters for build_perf app"""
 from django import template
+from build_perf.templatetags.build_perf_filters import gv_data_convert
 
 register = template.Library()
+
+@register.assignment_tag
+def strcat(*args):
+    """Concatenate strings"""
+    return ''.join([str(arg) for arg in args])
 
 
 @register.simple_tag
@@ -33,3 +39,14 @@ def modify_query_param(request, *args, **kwargs):
             params[name] = val
     return params.urlencode()
 
+@register.simple_tag
+def gv_datarow(values, src_unit, row_len):
+    """Convert input values into a list of values for dataRow of Google
+       visualization API"""
+    cnt = 0
+    ret = ''
+    for value in values:
+        cnt += 1
+        ret += str(gv_data_convert(value, src_unit))
+        ret += ','
+    return ret + 'null,' * (row_len - cnt)

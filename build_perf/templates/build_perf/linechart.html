@@ -1,0 +1,87 @@
+{% load build_perf_filters %}
+{% load build_perf_tags %}
+
+{% block scripts %}
+    <script type="text/javascript">
+        google.charts.setOnLoadCallback(drawChart{{ chart_elem_id }});
+        function drawChart{{ chart_elem_id }}() {
+            var data = new google.visualization.DataTable();
+
+            // Chart options
+            var v_title = '{{ meta.unit }}' == 'kib' ? 'size in MiB' : 'elapsed time';
+            var options = {
+                theme : 'material',
+                title: '{{ meta.title }}',
+                legend: 'none',
+                //tooltip: {isHtml: true},
+                hAxis: { format: '', title: 'Commit number' },
+                {% if meta.quantity == 'time' %}
+                vAxis: { format: 'H:mm:ss', title: v_title },
+                {% else %}
+                vAxis: { format: '', title: v_title },
+                {% endif %}
+                intervals: { 'style': 'points' },
+                dataOpacity: 0.5,
+            };
+
+            // Define data columns
+            var data_type = '{{ meta.quantity }}' == 'time' ? 'timeofday' : 'number';
+            data.addColumn('number', 'Commit');
+            data.addColumn(data_type, '{{ meta.quantity }}');
+            data.addColumn({type: 'string', role: 'tooltip'});
+            data.addColumn({type: 'string', role: 'style'});
+
+            for (i = 0; i < {{ meta.max_samples }}; i++) {
+                data.addColumn({type: data_type, role: 'interval'});
+            }
+
+            // Add data rows
+            var commits = {};
+            {% for fields in data %}
+                var tooltip = 'commit number: {{ fields.commit_count }}\n' +
+                    'commit sha1: {{ fields.commit }}\n' +
+                    'number of samples: {{ fields.count }}\n' +
+                    '{{ meta.quantity }}: {{ fields.avg|gv_data_to_str:meta.unit }}' +
+                    ' [{{ fields.min|gv_data_to_str:meta.unit }}...' +
+                    '{{ fields.max|gv_data_to_str:meta.unit }}]';
+                var row_data = [{{ fields.commit_count }},
+                        {{ fields.avg|gv_data_convert:meta.unit}},
+                        tooltip,
+                        null,
+                        {% gv_datarow fields.samples meta.unit meta.max_samples %}
+                    ];
+                {%if fields.commit_count == meta.highlight %}
+                row_data[3] = 'point { size: 10; shape-type: star; visible: true; fill-color: red}';
+                {% endif %}
+                data.addRow(row_data);
+
+                commits[{{ forloop.counter0 }}] = '{{ fields.commit }}';
+            {% endfor %}
+
+            var chart = new google.visualization.LineChart(document.getElementById('{{ chart_elem_id }}'));
+
+            // Clicking on a data point leads to testrun list
+            function selectHandler() {
+                var selectedItem = chart.getSelection()[0];
+                if (selectedItem != null && selectedItem.row != null && selectedItem.column != null) {
+                    {% url 'build_perf:testrunlist' as link %}
+                    var newlink = "{{ link | escapejs }}?tester_host={{ meta.tester_host }}&product={{ meta.product }}&git_branch={{meta.git_branch }}";
+                    newlink += "&git_commit=" + commits[selectedItem.row];
+                    window.location.href = newlink;
+                }
+            }
+            google.visualization.events.addListener(chart, 'select', selectHandler);
+
+            // Finally, draw the chart
+            chart.draw(data, options);
+        }
+
+        // Add to the list of drawing functions
+        if (typeof drawchart_funcs != 'undefined')
+            drawchart_funcs.push(drawChart{{ chart_elem_id }});
+    </script>
+{% endblock scripts %}
+
+{% block body %}
+    <div id="{{ chart_elem_id }}"></div>
+{% endblock %}

@@ -1,0 +1,12 @@
+{% load build_perf_filters %}
+{% load build_perf_tags %}
+
+{% block scripts %}
+    <script type="text/javascript" src="https://www.gstatic.com/charts/loader.js"></script>
+    <script type="text/javascript">
+        google.charts.load('current', {'packages':['corechart']});
+    </script>
+{% endblock scripts %}
+
+{% include "build_perf/linechart.html" with meta=meta data=data chart_elem_id="chart_foo" %}
+

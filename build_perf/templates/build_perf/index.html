@@ -20,7 +20,9 @@
         <ul class="list-group-item-text" style="list-style-type:none;">
         {% for branch in branches %}
           <li style="font-size:16px;:">
-            <a href="{% url 'build_perf:testrunlist' %}?product={{ product|urlencode }}&tester_host={{ host|urlencode }}&git_branch={{ branch|urlencode }}">{{ branch }} </a>
+            {{ branch }}
+            <a href="{% url 'build_perf:testrunlist' %}?product={{ product|urlencode }}&tester_host={{ host|urlencode }}&git_branch={{ branch|urlencode }}">[test runs]</a>
+            <a href="{% url 'build_perf:history' %}?product={{ product|urlencode }}&tester_host={{ host|urlencode }}&git_branch={{ branch|urlencode }}">[trendchart]</a>
           </li>
         {% endfor %}
         </ul>
