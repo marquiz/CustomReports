@@ -25,6 +25,7 @@ import sys
 import tempfile
 from datetime import datetime, timedelta, tzinfo
 from django.db import IntegrityError, transaction
+from subprocess import check_output
 
 sys.path.append(os.path.join(os.path.dirname(__file__), "customreports/"))
 os.environ["DJANGO_SETTINGS_MODULE"] = "customreports.settings"
@@ -55,6 +56,17 @@ The script is intended for development and testing purpoeses."""
                 description=descr,
                 formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 
+    parser.add_argument('--git', nargs="*", metavar="GIT_REV",
+                        help="Assume that RESULTS_PATH is a (local) Git "
+                             "repository, import data from local branches or "
+                             "the given revision(s)")
+    parser.add_argument('--git-fetch', action="store_true",
+                        help="Run git fetch before import, useful when "
+                             "combined with --remote")
+    parser.add_argument('--git-remote', metavar="GIT_REMOTE",
+                        nargs="?", const='',
+                        help="Import remote branches from %(metavar)s instead "
+                             "of local Git branches.")
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Enable debug level logging')
     parser.add_argument('-D', '--debug2', action='store_true',
@@ -111,7 +123,6 @@ def to_timedelta_obj(obj):
 
 def import_results_dir(results_dir):
     """Import results dir produced by oe-build-perf-test script"""
-    log.info("Importing test results from {}".format(results_dir))
 
     # Read json file
     with open(os.path.join(results_dir, 'results.json')) as fobj:
@@ -260,6 +271,48 @@ def import_bs_task(task_name, task_data, recipe_obj):
         task_obj.buildstatiostat_set.create(**task_data['iostat'])
 
 
+def import_git(path, git_rev):
+    """Import all testruns from Git revision range"""
+    tmpdir = tempfile.mkdtemp(prefix='git_worktree_')
+    try:
+        rev_list = check_output(['git', 'rev-list', '--reverse', git_rev],
+                                cwd=path).splitlines()
+        log.info("Importing %d testruns from Git (%s)",
+                 len(rev_list), git_rev)
+        for rev in rev_list:
+            log.info("Importing revision %s (of %s)", rev, git_rev)
+            log.debug("Unpacking revision %s", rev)
+            unpack_dir = os.path.abspath(os.path.join(tmpdir, rev))
+            os.mkdir(unpack_dir)
+            check_output('git archive %s | tar -x -C %s' % (rev, unpack_dir),
+                         cwd=path, shell=True)
+            import_results_dir(unpack_dir)
+            log.debug("Unlinking unpack dir")
+            shutil.rmtree(unpack_dir)
+    finally:
+        shutil.rmtree(tmpdir)
+
+def git_fetch(path, remote=None):
+    """Run git fetch"""
+    log.info("Running git fetch")
+    cmd = ['git', 'fetch']
+    if remote == '':
+        cmd.append('--all')
+    elif remote:
+        cmd.append(remote)
+    check_output(cmd, cwd=path)
+
+def get_git_branches(path, remote=None):
+    """Get list of branches"""
+    cmd = ['git', 'for-each-ref', '--format=%(refname)']
+    if remote is not None:
+        cmd.append('refs/remotes/' + remote)
+    else:
+        cmd.append('refs/heads')
+    return [r for r in check_output(cmd, cwd=path).splitlines() if
+            r != str(remote) + '/HEAD']
+
+
 def main(argv=None):
     """Script entry point"""
     args = parse_args(argv)
@@ -273,7 +326,19 @@ def main(argv=None):
     ret = 1
     try:
         # Import test results data
-        import_results_dir(args.results_path)
+        if args.git is not None:
+            if args.git_fetch:
+                git_fetch(args.results_path, args.git_remote)
+            if args.git:
+                revisions = args.git
+            else:
+                revisions = get_git_branches(args.results_path, args.git_remote)
+                log.info("Found %d branches: %s", len(revisions), revisions)
+            for rev_range in revisions:
+                import_git(args.results_path, rev_range)
+        else:
+            log.info("Importing test results from {}".format(args.results_path))
+            import_results_dir(args.results_path)
         ret = 0
     except MyError as err:
         if len(str(err)) > 0:
