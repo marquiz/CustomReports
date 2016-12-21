@@ -18,7 +18,7 @@ from . import views
 
 urlpatterns = [
     url(r'^$', views.index, name='index'),
-    url(r'^testruns$', views.TestRunList.as_view(), name='testrunlist'),
+    url(r'^testruns$', views.testrun_list, name='testrunlist'),
     url(r'^testruns/(?P<pk>.+)$', views.TestRunDetails.as_view(), name='testrundetails'),
     #url(r'^history$', views.HistoryView.as_view(), name='history'),
     url(r'^history$', views.history_view, name='history'),

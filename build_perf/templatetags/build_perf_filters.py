@@ -18,7 +18,10 @@ register = template.Library()
 
 @register.filter
 def get_item(hashable, key):
-    return hashable[key]
+    try:
+        return hashable[key]
+    except:
+        raise Exception("FAIL: %s of len %s (%s)" % (key, len(hashable), hashable))
 
 
 @register.filter

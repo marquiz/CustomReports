@@ -14,6 +14,7 @@
 import logging
 from collections import OrderedDict
 from datetime import timedelta
+from django.core.paginator import Paginator, EmptyPage, PageNotAnInteger
 from django.db.models import ExpressionWrapper, F
 from django.db.models.fields import FloatField, IntegerField
 from django.http import HttpResponse, Http404
@@ -22,6 +23,7 @@ from django.views.generic import DetailView, ListView
 from django.db.models import Count, Max, Min, Sum
 
 from .models import BPTestRun, BPTestCaseResult, BPMeasurement
+from .templatetags.build_perf_filters import gv_data_to_str
 
 log = logging.getLogger('django')
 
@@ -43,7 +45,7 @@ def index(request):
         })
 
 
-class TestRunList(ListView):
+def testrun_list(request):
     """Index page listing all tester hosts"""
     model = BPTestRun
     list_fields = OrderedDict([('id', 'ID'),
@@ -55,48 +57,99 @@ class TestRunList(ListView):
                                ('git_commit_count', 'Commit number'),
                                ('elapsed_time', 'Elapsed time')])
 
-    def get_queryset(self):
-        params = self.request.GET.dict()
-        self.paginate_by = self.request.GET.get('items_per_page', '50')
-        self.ordering = self.request.GET.get('order_by', 'start_time')
-        self.filters = dict([(n, v) for n, v in self.request.GET.items() if \
-                            n in self.list_fields])
-        # Set columns
-        self.columns = []
-        cols = self.request.GET.getlist('column') or self.list_fields.keys()
-        if not 'id' in cols:
-            # Always show ID
-            cols.insert(0, 'id')
-        for field in cols:
-            if field in self.filters:
-                continue
-            if (not field.startswith('git_commit') or
-                ('git_commit' not in self.filters and
-                 'git_commit_count' not in self.filters)):
-                self.columns.append(field)
-        queryset = BPTestRun.objects.filter(**self.filters).order_by(self.ordering).values_list(*self.columns)
-        self.total_row_count = len(queryset)
-        return queryset
+    params = request.GET.dict()
 
-    def get_context_data(self, **kwargs):
-        context = super(TestRunList, self).get_context_data(**kwargs)
-        context['order_by'] = self.ordering.lstrip('-')
-        if not self.ordering.startswith('-'):
-            context['reverse_order'] = '-' + self.ordering
-        else:
-            context['reverse_order'] = self.ordering.lstrip('-')
+    # Get ordered list of items
+    ordering = request.GET.get('order_by', 'start_time')
+    filters = dict([(n, v) for n, v in request.GET.items() if \
+                        n in list_fields])
+    all_runs = BPTestRun.objects.filter(**filters).order_by(ordering)
 
-        # Add fields to show
-        context['filters'] = OrderedDict()
-        for field in self.filters:
-            context['filters'][field] = (self.list_fields[field], self.filters[field])
-        context['columns'] = OrderedDict()
-        for field in self.columns:
-            context['columns'][field] = self.list_fields[field]
-        context['filter_params'] = self.request.GET.urlencode()
-        context['total_row_count'] = self.total_row_count
+    # Do pagination
+    paginate_by = request.GET.get('items_per_page', '50')
+    paginator = Paginator(all_runs, paginate_by)
+    page = request.GET.get('page')
+    try:
+        page_obj = paginator.page(page)
+    except PageNotAnInteger:
+        page_obj = paginator.page(1)
+    except EmptyPage:
+        page_obj = paginator.page(paginator.num_pages)
+    runs = page_obj.object_list
 
-        return context
+    # Set data columns
+    columns = []
+    cols = request.GET.getlist('column') or list_fields.keys()
+    if not 'id' in cols:
+        # Always show ID
+        cols.insert(0, 'id')
+    for field in cols:
+        if field in filters:
+            continue
+        if (not field.startswith('git_commit') or
+            ('git_commit' not in filters and
+             'git_commit_count' not in filters)):
+            columns.append((field, list_fields[field]))
+
+    # Form data table
+    table = []
+    for run in runs.values_list(*[f for f, n in columns]):
+        table.append(list(run))
+
+    # Set measurement columns
+    measurement_col_ids = {}
+    measurement_cols = request.GET.getlist('measurement')
+    if not measurement_cols:
+        # Get all measurements
+        measurements = BPMeasurement.objects.order_by('test_result__name').values_list('test_result__name', 'name').distinct()
+        for i, (test, measurement) in enumerate(measurements):
+            measurement_cols.append(test + ':' + measurement)
+    if measurement_cols:
+        for i, col in enumerate(measurement_cols):
+            if col:
+                test, measurement = col.split(':')
+                measurement_col_ids[col] = i
+                # Get quantity
+                if hasattr(BPMeasurement.objects.filter(test_result__name=test, name=measurement).last(), 'sysresmeasurement'):
+                    quantity = 'time'
+                else:
+                    quantity = 'size'
+                columns.append((None, "%s: %s %s" % (test, measurement, quantity)))
+
+    if measurement_col_ids:
+        for i, run in enumerate(runs):
+            extra = [None] * len(measurement_col_ids)
+            for test, measurement, time, size in run.bptestcaseresult_set.values_list('name', 'bpmeasurement__name', 'bpmeasurement__sysresmeasurement__elapsed_time', 'bpmeasurement__diskusagemeasurement__size'):
+                if not measurement:
+                    continue
+                key = test + ':' + measurement
+                if key in measurement_col_ids:
+                    value = time or size
+                    unit = 'timedelta' if time else 'kib'
+                    str_value = gv_data_to_str(value, unit)
+                    extra[measurement_col_ids[key]] = str_value
+            table[i].extend(extra)
+
+    # Gather context data
+    context = {}
+    context['paginator'] = paginator
+    context['page_obj'] = page_obj
+    context['order_by'] = ordering.lstrip('-')
+    if not ordering.startswith('-'):
+        context['reverse_order'] = '-' + ordering
+    else:
+        context['reverse_order'] = ordering.lstrip('-')
+
+    # Add fields to show
+    context['filters'] = OrderedDict()
+    for field in filters:
+        context['filters'][field] = (list_fields[field], filters[field])
+    context['columns'] = columns
+    context['filter_params'] = request.GET.urlencode()
+    context['row_data'] = table
+    context['total_row_count'] = len(all_runs)
+
+    return render(request, 'build_perf/bptestrun_list.html', context)
 
 
 class TestRunDetails(DetailView):

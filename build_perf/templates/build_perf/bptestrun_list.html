@@ -27,7 +27,7 @@
   {% endfor %}
   </div>
   <!-- Paginator -->
-  {% if is_paginated %}
+  {% if paginator.num_pages > 1 %}
   <nav>
     <ul class="pagination pagination-sm">
     {% if page_obj.has_previous %}
@@ -52,7 +52,7 @@
     <!-- Table header row -->
     <thead>
       <tr>
-      {% for field, heading in columns.items %}
+      {% for field, heading in columns %}
         <th>
         {% if order_by == field %}
           <a href="?{% modify_query_param request 'order_by' reverse_order %}">{{ heading }}</a>
@@ -61,8 +61,10 @@
           {% else %}
             <span class="glyphicon glyphicon-triangle-top"></span>
           {% endif %}
-        {% else %}
+        {% elif field %}
           <a href="?{% modify_query_param request 'order_by' field %}">{{ heading }}</a>
+        {% else %}
+          {{ heading }}
         {% endif %}
           </th>
       {% endfor %}
@@ -70,25 +72,29 @@
     </thead>
     <!-- Table body -->
     <tbody>
-    {% with columns.keys as col_fields %}
-    {% for row in bptestrun_list %}
+    {% for row in row_data %}
       <tr>
       {% for col in row %}
         <td>
-        {% with col_fields|get_item:forloop.counter0 as field %}
+        {% with columns|get_item:forloop.counter0|get_item:0 as field %}
         {% if field == "id" %}
           <a href="{% url 'build_perf:testrundetails' pk=col %}?filter_params={{ filter_params|urlencode }}">{{ col }}</a>
+        {% elif field == "elapsed_time" %}
+          {{ col|gv_data_to_str:"timedelta" }}
         {% elif 'time' in field %}
           {{ col }}
-        {% else %}
+        {% elif field == "git_commit" %}
+          <a href="?{% modify_query_param request field col page=1 %}">{{ col|slice:":8" }}...</a>
+        {% elif field %}
           <a href="?{% modify_query_param request field col page=1 %}">{{ col }}</a>
+        {% else %}
+          {{ col }}
         {% endif %}
         {% endwith %}
         </td>
       {% endfor %}
       </tr>
     {% endfor %}
-    {% endwith %}
     </tbody>
   </ul>
 {% endblock body %}

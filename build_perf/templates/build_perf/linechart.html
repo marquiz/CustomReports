@@ -65,7 +65,7 @@
                 var selectedItem = chart.getSelection()[0];
                 if (selectedItem != null && selectedItem.row != null && selectedItem.column != null) {
                     {% url 'build_perf:testrunlist' as link %}
-                    var newlink = "{{ link | escapejs }}?tester_host={{ meta.tester_host }}&product={{ meta.product }}&git_branch={{meta.git_branch }}";
+                    var newlink = "{{ link | escapejs }}?tester_host={{ meta.tester_host }}&product={{ meta.product }}&git_branch={{meta.git_branch }}&measurement={{ meta.test }}:{{ meta.measurement }}";
                     newlink += "&git_commit=" + commits[selectedItem.row];
                     window.location.href = newlink;
                 }
