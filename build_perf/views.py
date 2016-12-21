@@ -21,6 +21,7 @@ from django.http import HttpResponse, Http404
 from django.shortcuts import render
 from django.views.generic import DetailView, ListView
 from django.db.models import Count, Max, Min, Sum
+from itertools import chain
 
 from .models import BPTestRun, BPTestCaseResult, BPMeasurement
 from .templatetags.build_perf_filters import gv_data_to_str
@@ -63,7 +64,25 @@ def testrun_list(request):
     ordering = request.GET.get('order_by', 'start_time')
     filters = dict([(n, v) for n, v in request.GET.items() if \
                         n in list_fields])
-    all_runs = BPTestRun.objects.filter(**filters).order_by(ordering)
+
+    if ordering.lstrip('-').startswith('measurement:'):
+        test, measurement = ordering.split(':')[1:]
+        o_prefix = '-' if ordering[0] == '-' else ''
+        # First, get test runs which contain this measurement
+        m_filters = dict(filters)
+        m_filters['bptestcaseresult__name'] = test
+        m_filters['bptestcaseresult__bpmeasurement__name'] = measurement
+        m_order_by = (o_prefix + 'bptestcaseresult__bpmeasurement__sysresmeasurement__elapsed_time',
+                      o_prefix + 'bptestcaseresult__bpmeasurement__diskusagemeasurement__size')
+        runs1 = BPTestRun.objects.filter(**m_filters).order_by(*m_order_by)
+
+        # Then, get test runs which are missing this measurement
+        runs2 =  BPTestRun.objects.filter(**filters).exclude(id__in=runs1)
+
+        # Finally, join these
+        all_runs = list(chain(runs1, runs2))
+    else:
+        all_runs = BPTestRun.objects.filter(**filters).order_by(ordering)
 
     # Do pagination
     paginate_by = request.GET.get('items_per_page', '50')
@@ -93,8 +112,16 @@ def testrun_list(request):
 
     # Form data table
     table = []
-    for run in runs.values_list(*[f for f, n in columns]):
-        table.append(list(run))
+    if isinstance(runs, list):
+        for run in runs:
+            row = []
+            for f, n in columns:
+                row.append(getattr(run, f))
+            table.append(row)
+    else:
+        # More optimal if 'runs' is a QuerySet
+        for run in runs.values_list(*[f for f, n in columns]):
+            table.append(list(run))
 
     # Set measurement columns
     measurement_col_ids = {}
@@ -114,7 +141,8 @@ def testrun_list(request):
                     quantity = 'time'
                 else:
                     quantity = 'size'
-                columns.append((None, "%s: %s %s" % (test, measurement, quantity)))
+                columns.append(('measurement:%s:%s' % (test, measurement),
+                                "%s: %s %s" % (test, measurement, quantity)))
 
     if measurement_col_ids:
         for i, run in enumerate(runs):

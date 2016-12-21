@@ -85,10 +85,10 @@
           {{ col }}
         {% elif field == "git_commit" %}
           <a href="?{% modify_query_param request field col page=1 %}">{{ col|slice:":8" }}...</a>
-        {% elif field %}
-          <a href="?{% modify_query_param request field col page=1 %}">{{ col }}</a>
-        {% else %}
+        {% elif field|slice:":12" == "measurement:" %}
           {{ col }}
+        {% else %}
+          <a href="?{% modify_query_param request field col page=1 %}">{{ col }}</a>
         {% endif %}
         {% endwith %}
         </td>
