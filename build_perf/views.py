@@ -248,6 +248,7 @@ def _aggregate_measurement(product, tester_host, git_branch, test, measurement,
     data = []
     commits = measurements.order_by('test_result__test_run__git_commit_count').values_list(
         'test_result__test_run__git_commit_count', 'test_result__test_run__git_commit').distinct()
+    show_samples = True if commits.count() <=100 else False
 
     max_samples = 0
     for commit_count, commit in commits:
@@ -255,9 +256,15 @@ def _aggregate_measurement(product, tester_host, git_branch, test, measurement,
         row = per_commit.aggregate(
             sum=Sum(data_field), count=Count(data_field), min=Min(data_field), max=Max(data_field))
         row['avg'] = row['sum'] / row['count']
-        row['samples'] = per_commit.filter(**{data_field + '__isnull': False}).values_list(data_field, flat=True)
-        if row['count'] > max_samples:
-            max_samples = row['count']
+
+        if show_samples:
+            row['samples'] = per_commit.filter(**{data_field + '__isnull': False}).values_list(data_field, flat=True)
+            row['samples_count'] = row['count']
+        else:
+            row['samples_count'] = 0
+
+        if row['samples_count'] > max_samples:
+            max_samples = row['samples_count']
 
         row['commit_count'] = commit_count
         row['commit'] = commit
