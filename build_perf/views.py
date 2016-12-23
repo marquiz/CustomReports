@@ -212,19 +212,24 @@ class TestRunDetails(DetailView):
         return context
 
 
-def _aggregate_measurement(product, tester_host, git_branch, test, measurement):
+def _aggregate_measurement(product, tester_host, git_branch, test, measurement,
+                           commit_start=None, commit_end=None):
     meta = {'product': product,
             'tester_host': tester_host,
             'git_branch': git_branch,
             'test': test,
             'measurement': measurement}
 
-    measurements = BPMeasurement.objects.filter(
-        name=measurement,
-        test_result__name=test,
-        test_result__test_run__product=product,
-        test_result__test_run__tester_host=tester_host,
-        test_result__test_run__git_branch=git_branch)
+    filters = dict(name=measurement,
+                   test_result__name=test,
+                   test_result__test_run__product=product,
+                   test_result__test_run__tester_host=tester_host,
+                   test_result__test_run__git_branch=git_branch)
+    if commit_start:
+        filters['test_result__test_run__git_commit_count__gte'] = commit_start
+    if commit_end:
+        filters['test_result__test_run__git_commit_count__lte'] = commit_end
+    measurements = BPMeasurement.objects.filter(**filters)
     last = measurements.last()
 
     # Check type of measurement
@@ -302,6 +307,23 @@ def history_view(request):
                    test_result__test_run__git_branch=params['git_branch'])
     m_list = BPMeasurement.objects.filter(**filters).order_by('test_result__name').values_list('test_result__name', 'name').distinct()
 
+    # Restrict the number of commits
+    commit_count_list = BPTestRun.objects.filter(product=params['product'], tester_host=params['tester_host'], git_branch=params['git_branch']).order_by('git_commit_count').reverse().values_list('git_commit_count', flat=True).distinct()
+    tested_commits = commit_count_list.count()
+
+    def limit_commit_num(commit_num):
+        commit_num = int(commit_num)
+        if commit_num <= 0:
+            # Find Nth last commit that was tested
+            commit_num = commit_count_list[min(-commit_num, tested_commits - 1)]
+        if commit_num < commit_count_list.last():
+            commit_num = commit_count_list.last()
+        elif commit_num > commit_count_list.first():
+            commit_num = commit_count_list.first()
+        return commit_num
+    commit_start = limit_commit_num(params.get('commit_start', -50))
+    commit_end = limit_commit_num(params.get('commit_end', 0))
+
     measurement_cnt = 0
     for test, measurement in m_list:
         if not test in context['tests']:
@@ -309,12 +331,27 @@ def history_view(request):
             context['tests'][test] = {'description': descr, 'measurements': []}
         context['tests'][test]['measurements'].append(
             _aggregate_measurement(params['product'], params['tester_host'], params['git_branch'],
-                                   test, measurement))
+                                   test, measurement, commit_start, commit_end))
         context['tests'][test]['measurements'][-1][0]['chart_id'] = 'chart_%d' % measurement_cnt
+
+        # Equalize x axis in all measurements
+        meta = context['tests'][test]['measurements'][-1][0]
+        meta['haxis'] = (commit_start, commit_end)
+
         measurement_cnt +=1
 
+    # Info fields
     context['info'] = OrderedDict()
     for field, heading in filter_fields.items():
         context['info'][heading] = params[field]
+
+    # Filters
+    filters = OrderedDict()
+
+    counts = (-5, -10, -25, -50, -100, -250, -500, -1000)
+    commit_start = int(params.get('commit_start', -50))
+    filters['commit_start'] = ('Commits to show', commit_start, [(abs(n), n) for n in counts if abs(n) < tested_commits])
+    filters['commit_start'][2].append(('all', 1, 1))
+    context['filters'] = filters
 
     return render(request, 'build_perf/history.html', context)

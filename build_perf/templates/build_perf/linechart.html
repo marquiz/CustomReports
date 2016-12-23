@@ -23,6 +23,10 @@
                 intervals: { 'style': 'points' },
                 dataOpacity: 0.5,
             };
+            {% if meta.haxis %}
+            options['hAxis']['minValue'] = {{ meta.haxis.0 }};
+            options['hAxis']['maxValue'] = {{ meta.haxis.1 }};
+            {% endif %}
 
             // Define data columns
             var data_type = '{{ meta.quantity }}' == 'time' ? 'timeofday' : 'number';

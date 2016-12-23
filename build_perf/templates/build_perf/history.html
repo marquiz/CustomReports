@@ -29,6 +29,20 @@ google.charts.load('current', {'packages':['corechart']});
         <dt>{{ name }}</dt>
         <dd>{{ value }}</dd>
         {% endfor %}
+        {% for field, values in filters.items %}
+        <dt>{{ values.0 }}</dt>
+        <dd>
+          <div class="btn-group">
+            {% for item in values.2 %}
+            <a class="btn btn-link btn-sm {% if values.1 == item.1 %}disabled{% endif %}"
+               style="padding-top:0px;padding-left:0px"
+               href="?{% modify_query_param request field item.1 %}">
+               {{ item.0 }}
+            </a>
+            {% endfor %}
+        </div>
+        </dd>
+        {% endfor %}
       </dl>
     </div>
   </div>
