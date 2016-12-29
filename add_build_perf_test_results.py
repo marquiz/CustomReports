@@ -123,15 +123,36 @@ def to_timedelta_obj(obj):
         return timedelta(seconds=obj)
 
 
+def read_json_report(results_dir):
+    """Read results and metadata from JSON files"""
+    with open(os.path.join(results_dir, 'results.json')) as fobj:
+        results = json.load(fobj)
+    if os.path.exists(os.path.join(results_dir, 'metadata.json')):
+        with open(os.path.join(results_dir, 'metadata.json')) as fobj:
+            metadata = json.load(fobj)
+    else:
+        metadata = {'hostname': results['tester_host'],
+                    'distro': {'id': results['product']},
+                    'layers': {'meta': {'branch': results['git_branch'],
+                                        'commit': results['git_commit'],
+                                        'commit_count': results['git_commit_count']}}}
+    return metadata, results
+
+
 def import_results_dir(results_dir, force_meta=None):
     """Import results dir produced by oe-build-perf-test script"""
 
     # Read json file
-    with open(os.path.join(results_dir, 'results.json')) as fobj:
-        results = json.load(fobj)
+    metadata, results = read_json_report(results_dir)
     if force_meta:
-        for key, val in force_meta:
-            results[key] = val
+        for attr, val in force_meta:
+            top = metadata
+            keys = attr.split('.')
+            for key in keys[:-1]:
+                if not key in top:
+                    top[key] = dict()
+                top = top[key]
+            top[keys[-1]] = val
 
     # Load buildstats
     for test in results['tests'].values():
@@ -143,19 +164,21 @@ def import_results_dir(results_dir, force_meta=None):
 
     # Import test results data
     try:
-        import_results(results)
+        import_results(metadata, results)
     except (TypeError, IntegrityError) as err:
         log.error("Problems in input data: {}".format(err))
         raise MyError("Invalid results data!")
 
-def import_results(results):
+def import_results(metadata, results):
     """Import all data from a results dict into the database"""
-    data = {}
-    for field in ('product', 'tester_host', 'git_branch', 'git_commit',
-                  'git_commit_count'):
-        data[field] = str(results[field])
-    data['start_time'] = to_datetime_obj(results['start_time'])
-    data['elapsed_time'] = to_timedelta_obj(results['elapsed_time'])
+    data = {'product': metadata['distro']['id'],
+            'tester_host': metadata['hostname'],
+            'git_branch': metadata['layers']['meta']['branch'],
+            'git_commit': metadata['layers']['meta']['commit'],
+            'git_commit_count': metadata['layers']['meta']['commit_count'],
+            'start_time': to_datetime_obj(results['start_time']),
+            'elapsed_time': to_timedelta_obj(results['elapsed_time'])
+    }
 
     # Check if this testrun already exists in the DB
     if BPTestRun.objects.filter(**data).exists():
