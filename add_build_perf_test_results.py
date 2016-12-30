@@ -23,6 +23,8 @@ import os
 import shutil
 import sys
 import tempfile
+import xml.etree.ElementTree as ET
+from collections import OrderedDict
 from datetime import datetime, timedelta, tzinfo
 from django.db import IntegrityError, transaction
 from subprocess import check_output
@@ -112,15 +114,19 @@ def to_datetime_obj(obj):
     """Helper for getting timestamps in datetime format"""
     if isinstance(obj, datetime):
         return obj
-    else:
+    elif isinstance(obj, float):
         return datetime.utcfromtimestamp(obj).replace(tzinfo=TIMEZONES['UTC'])
+    else:
+        # Assume that we have a string
+        fmt = '%Y-%m-%dT%H:%M:%S.%f' if obj.find('.') >= 0 else '%Y-%m-%dT%H:%M:%S'
+        return datetime.strptime(obj, fmt).replace(tzinfo=TIMEZONES['UTC'])
 
 def to_timedelta_obj(obj):
     """Helper for getting elapsed time in timedelta format"""
     if isinstance(obj, timedelta):
         return obj
     else:
-        return timedelta(seconds=obj)
+        return timedelta(seconds=float(obj))
 
 
 def read_json_report(results_dir):
@@ -138,12 +144,87 @@ def read_json_report(results_dir):
                                         'commit_count': results['git_commit_count']}}}
     return metadata, results
 
+def read_xml_report(results_dir):
+    """Read results and metadata from XML files"""
+    def elem_to_dict(element):
+        """Stupid converter from xml element to dict format"""
+        if len(element):
+            ret = OrderedDict()
+            for child in element:
+                key = child.get('name', child.tag)
+                ret[key] = elem_to_dict(child)
+            return ret
+        else:
+            return element.text
+
+    # Read metadata into dict
+    tree = ET.parse(os.path.join(results_dir, 'metadata.xml'))
+    metadata = elem_to_dict(tree.getroot())
+
+    # Read results into a dict
+    tree = ET.parse(os.path.join(results_dir, 'results.xml'))
+    results = OrderedDict()
+    suite = tree.getroot().find('testsuite')
+
+    results['start_time'] = to_datetime_obj(suite.get('timestamp'))
+    results['elapsed_time'] = to_timedelta_obj(suite.get('time'))
+    results['tests'] = OrderedDict()
+
+    for testcase in suite.findall('testcase'):
+        attrib = testcase.attrib
+        name = attrib['name']
+        result = {'name': name,
+                  'description': attrib['description'],
+                  'start_time': to_datetime_obj(attrib['timestamp']),
+                  'elapsed_time': to_timedelta_obj(attrib['time']),
+                  'status': 'SUCCESS',
+                  'measurements': []}
+        for child in testcase:
+            if child.tag == 'skipped':
+                result['status'] = 'SKIPPED'
+                result['status_msg'] = child.text
+            elif child.tag == 'failure' or child.tag == 'error':
+                result['status'] = child.tag.upper()
+                result['status_msg'] = child.get('message')
+                result['err_type'] = child.get('type')
+                result['err_output'] = child.text
+            elif child.tag == 'sysres':
+                measurement = {'name': child.attrib['name'],
+                               'legend': child.attrib['legend'],
+                               'type': 'sysres'}
+                time = child.find('time')
+                measurement['values'] = {
+                    'start_time': to_datetime_obj(time.attrib['timestamp']),
+                    'elapsed_time': to_timedelta_obj(time.text),
+                    'rusage': child.find('rusage').attrib
+                }
+                iostat = child.find('iostat')
+                if iostat is not None:
+                    measurement['values']['iostat'] = iostat.attrib
+
+                buildstats = child.find('buildstats_file')
+                if buildstats is not None:
+                    measurement['values']['buildstats_file'] = buildstats.text
+                result['measurements'].append(measurement)
+            elif child.tag == 'diskusage':
+                measurement = {'name': child.attrib['name'],
+                               'legend': child.attrib['legend'],
+                               'type': 'diskusage',
+                               'values': {'size': child.find('size').text}}
+                result['measurements'].append(measurement)
+            else:
+                raise TypeError("Unknown XML tag {}".format(child.tag))
+        results['tests'][name] = result
+    return metadata, results
 
 def import_results_dir(results_dir, force_meta=None):
     """Import results dir produced by oe-build-perf-test script"""
 
     # Read json file
-    metadata, results = read_json_report(results_dir)
+    if os.path.exists(os.path.join(results_dir, 'results.xml')):
+        metadata, results = read_xml_report(results_dir)
+    else:
+        metadata, results = read_json_report(results_dir)
     if force_meta:
         for attr, val in force_meta:
             top = metadata
