@@ -35,7 +35,7 @@ from build_perf.models import (BPTestRun, BPTestCaseResult,
                                DiskUsageMeasurement, SysResMeasurement,
                                SysResRusage, SysResIOStat,
                                BuildStatRecipe, BuildStatTask, BuildStatRusage,
-                               BuildStatIOStat)
+                               BuildStatIOStat, GitImportTip)
 
 
 logging.basicConfig(level=logging.INFO)
@@ -274,8 +274,25 @@ def import_bs_task(task_name, task_data, recipe_obj):
 def import_git(path, git_rev):
     """Import all testruns from Git revision range"""
     tmpdir = tempfile.mkdtemp(prefix='git_worktree_')
+    all_branches = get_git_branches(path) + get_git_branches(path, remote='')
+
+    # Store last imported commit if we're importing complete branches
+    git_ref = check_output(['git', 'rev-parse', '--symbolic-full-name',
+                            git_rev], cwd=path).splitlines()
+    if git_ref:
+        git_ref = git_ref[0]
+        if git_ref in all_branches:
+            tip_obj, _ = GitImportTip.objects.get_or_create(branch=git_ref)
+            tip_commit = tip_obj.commit
+            if tip_commit:
+                log.info("Starting after commit %s (%s)", tip_commit, git_rev)
+    else:
+        tip_obj = None
+        tip_commit = ''
+
     try:
-        rev_list = check_output(['git', 'rev-list', '--reverse', git_rev],
+        rev_range = '%s..%s' % (tip_commit, git_rev) if tip_commit else git_rev
+        rev_list = check_output(['git', 'rev-list', '--reverse', rev_range],
                                 cwd=path).splitlines()
         log.info("Importing %d testruns from Git (%s)",
                  len(rev_list), git_rev)
@@ -287,6 +304,11 @@ def import_git(path, git_rev):
             check_output('git archive %s | tar -x -C %s' % (rev, unpack_dir),
                          cwd=path, shell=True)
             import_results_dir(unpack_dir)
+
+            if tip_obj:
+                tip_obj.commit = rev
+                tip_obj.save()
+
             log.debug("Unlinking unpack dir")
             shutil.rmtree(unpack_dir)
     finally:

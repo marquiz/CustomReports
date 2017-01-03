@@ -140,6 +140,13 @@ class BuildStatRusage(RusageBase):
     who = models.CharField(max_length=1, choices=WHO_CHOICES)
 
 
+class GitImportTip(models.Model):
+    """Helper class for add_build_perf_test_results.py to store the last
+       imported commits of branches"""
+    branch = models.CharField(max_length=80, unique=True)
+    commit = models.CharField(max_length=40)
+
+
 #{ Forms for add_build_perf_test_result.py
 
 class BPTestRunForm(ModelForm):
