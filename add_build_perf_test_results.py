@@ -67,6 +67,8 @@ The script is intended for development and testing purpoeses."""
                         nargs="?", const='',
                         help="Import remote branches from %(metavar)s instead "
                              "of local Git branches.")
+    parser.add_argument('-F', '--force-meta', action='append', nargs=2,
+                        help='Override test metadata, use with care!')
     parser.add_argument('-d', '--debug', action='store_true',
                         help='Enable debug level logging')
     parser.add_argument('-D', '--debug2', action='store_true',
@@ -121,12 +123,15 @@ def to_timedelta_obj(obj):
         return timedelta(seconds=obj)
 
 
-def import_results_dir(results_dir):
+def import_results_dir(results_dir, force_meta=None):
     """Import results dir produced by oe-build-perf-test script"""
 
     # Read json file
     with open(os.path.join(results_dir, 'results.json')) as fobj:
         results = json.load(fobj)
+    if force_meta:
+        for key, val in force_meta:
+            results[key] = val
 
     # Load buildstats
     for test in results['tests'].values():
@@ -271,7 +276,7 @@ def import_bs_task(task_name, task_data, recipe_obj):
         task_obj.buildstatiostat_set.create(**task_data['iostat'])
 
 
-def import_git(path, git_rev):
+def import_git(path, git_rev, force_meta):
     """Import all testruns from Git revision range"""
     tmpdir = tempfile.mkdtemp(prefix='git_worktree_')
     all_branches = get_git_branches(path) + get_git_branches(path, remote='')
@@ -303,7 +308,7 @@ def import_git(path, git_rev):
             os.mkdir(unpack_dir)
             check_output('git archive %s | tar -x -C %s' % (rev, unpack_dir),
                          cwd=path, shell=True)
-            import_results_dir(unpack_dir)
+            import_results_dir(unpack_dir, force_meta)
 
             if tip_obj:
                 tip_obj.commit = rev
@@ -357,10 +362,10 @@ def main(argv=None):
                 revisions = get_git_branches(args.results_path, args.git_remote)
                 log.info("Found %d branches: %s", len(revisions), revisions)
             for rev_range in revisions:
-                import_git(args.results_path, rev_range)
+                import_git(args.results_path, rev_range, args.force_meta)
         else:
             log.info("Importing test results from {}".format(args.results_path))
-            import_results_dir(args.results_path)
+            import_results_dir(args.results_path, args.force_meta)
         ret = 0
     except MyError as err:
         if len(str(err)) > 0:
