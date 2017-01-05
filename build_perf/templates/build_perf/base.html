@@ -26,9 +26,14 @@
           <span class="icon-bar"></span>
           <span class="icon-bar"></span>
         </button>
+        <div class="navbar-brand">
+          <img style="max-width:90px; margin-top: -7px; margin-right: 10px;" src="{{ STATIC_URL }}charts/img/logo.png" title="Homepage" alt="Yocto logo project">
+        </div>
         <a class="navbar-brand" href="{% url 'charts:index' %}">
-          <span><img style="max-width:90px; margin-top: -7px; margin-right: 10px;" src="{{ STATIC_URL }}charts/img/logo.png" title="Homepage" alt="Yocto logo project"></span>
           Custom Reports
+        </a>
+        <a class="navbar-brand" href="{% url 'build_perf:index' %}">
+          Build Performance Results
         </a>
       </div>
     </nav>
