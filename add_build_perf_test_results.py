@@ -237,7 +237,11 @@ def import_results_dir(results_dir, force_meta=None):
 
     # Load buildstats
     for test in results['tests'].values():
-        for measurement in test['measurements']:
+        if isinstance(test['measurements'], list):
+            measurements = test['measurements']
+        else:
+            measurements = test['measurements'].values()
+        for measurement in measurements:
             bs_fn = measurement['values'].get('buildstats_file')
             if bs_fn:
                 with open(os.path.join(results_dir, bs_fn)) as fobj:
@@ -293,7 +297,11 @@ def import_bptestcaseresult(case_results, test_run):
     if case_results['elapsed_time'] is not None:
         data['elapsed_time'] = to_timedelta_obj(case_results['elapsed_time'])
     result_obj = test_run.bptestcaseresult_set.create(**data)
-    for meas in case_results['measurements']:
+    if isinstance(case_results['measurements'], list):
+        measurements = case_results['measurements']
+    else:
+        measurements = case_results['measurements'].values()
+    for meas in measurements:
         if meas['type'] == 'diskusage':
             du_obj = DiskUsageMeasurement(test_result=result_obj,
                                           name=meas['name'],
